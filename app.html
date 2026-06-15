@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Borang ICU Sabah</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">
+          <img src="assets/logo-icu-jpm-sabah.png" alt="Logo ICU JPM Sabah">
+        </div>
+        <div>
+          <strong>Smart Borang</strong>
+          <span>ICU JPM Sabah</span>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Navigasi utama">
+        <button class="nav-item active" data-section="dashboard" title="Dashboard">
+          <span class="icon">▦</span><span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-section="repository" title="Repositori Borang">
+          <span class="icon">▤</span><span>Repositori</span>
+        </button>
+        <button class="nav-item" data-section="fill" title="Isi Borang">
+          <span class="icon">✎</span><span>Isi Borang</span>
+        </button>
+        <button class="nav-item" data-section="workflow" title="Workflow Kelulusan">
+          <span class="icon">↻</span><span>Workflow</span>
+        </button>
+        <button class="nav-item" data-section="process" title="Proses Kerja">
+          <span class="icon">→</span><span>Proses Kerja</span>
+        </button>
+        <button class="nav-item" data-section="ai" title="AI Assistant">
+          <span class="icon">AI</span><span>AI Assistant</span>
+        </button>
+        <button class="nav-item" data-section="reports" title="Pelaporan">
+          <span class="icon">▥</span><span>Laporan</span>
+        </button>
+        <button class="nav-item" data-section="access" title="Kawalan Akses">
+          <span class="icon">◎</span><span>Akses</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>Status sistem</span>
+        <strong>Prototype UAT</strong>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="title-block">
+          <img class="department-logo" src="assets/logo-icu-jpm-sabah.png" alt="Logo ICU JPM Sabah">
+          <div>
+            <p class="eyebrow">Pejabat Pembangunan Negeri Sabah</p>
+            <h1>Smart Borang</h1>
+          </div>
+        </div>
+        <div class="user-panel">
+          <label for="roleSelect">Peranan</label>
+          <select id="roleSelect">
+            <option>Pegawai</option>
+            <option>Ketua Unit</option>
+            <option>Pengarah</option>
+          </select>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <div class="metric-grid">
+          <article class="metric">
+            <span>Borang Aktif</span>
+            <strong>38</strong>
+            <small>6 kategori rasmi</small>
+          </article>
+          <article class="metric">
+            <span>Menunggu Kelulusan</span>
+            <strong>12</strong>
+            <small>4 melebihi 7 hari</small>
+          </article>
+          <article class="metric">
+            <span>Draf Pengguna</span>
+            <strong>27</strong>
+            <small>Disimpan automatik</small>
+          </article>
+          <article class="metric">
+            <span>Selesai Bulan Ini</span>
+            <strong>91</strong>
+            <small>+18% berbanding Mei</small>
+          </article>
+        </div>
+
+        <div class="content-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Status Borang</h2>
+              <button class="icon-button" title="Segar semula">↻</button>
+            </div>
+            <div class="status-bars">
+              <div><span>Draf</span><meter value="27" max="100"></meter><strong>27</strong></div>
+              <div><span>Dihantar</span><meter value="35" max="100"></meter><strong>35</strong></div>
+              <div><span>Semakan</span><meter value="18" max="100"></meter><strong>18</strong></div>
+              <div><span>Diluluskan</span><meter value="91" max="100"></meter><strong>91</strong></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Alert Tindakan</h2>
+              <button class="icon-button" title="Tapis">☰</button>
+            </div>
+            <ul class="alert-list">
+              <li><strong>ICU-PROJ-014</strong><span>Laporan tapak belum disemak 9 hari</span></li>
+              <li><strong>ICU-KEW-008</strong><span>Permohonan peruntukan perlukan ulasan kewangan</span></li>
+              <li><strong>ICU-ISO-003</strong><span>Tindakan pembetulan audit hampir tamat tempoh</span></li>
+            </ul>
+          </section>
+        </div>
+      </section>
+
+      <section id="repository" class="view">
+        <form class="add-form-panel" id="addForm">
+          <div class="panel-head">
+            <div>
+              <h2>Tambah Borang</h2>
+              <p>Daftar borang baharu ke dalam repositori berpusat.</p>
+            </div>
+            <span class="badge">Repositori</span>
+          </div>
+          <div class="add-form-grid">
+            <label>No. Borang<input name="id" placeholder="Contoh: ICU-PROJ-030" required></label>
+            <label>Nama Borang<input name="name" placeholder="Contoh: Laporan Isu Projek" required></label>
+            <label>Kategori
+              <select name="category" required>
+                <option>Projek Pembangunan</option>
+                <option>Kewangan</option>
+                <option>Audit & Kualiti</option>
+                <option>Kesejahteraan</option>
+                <option>HR & Pentadbiran</option>
+              </select>
+            </label>
+            <label>Versi<input name="version" placeholder="v1.0" value="v1.0" required></label>
+            <label>Status
+              <select name="status" required>
+                <option>Aktif</option>
+                <option>Draf</option>
+              </select>
+            </label>
+            <button type="submit">Tambah Borang</button>
+          </div>
+          <p id="repositoryMessage" class="message" role="status"></p>
+        </form>
+
+        <form class="upload-form-panel" id="uploadForm">
+          <div class="panel-head">
+            <div>
+              <h2>Upload Borang</h2>
+              <p>Muat naik fail borang untuk diisi secara online atau dicetak bagi pengisian manual.</p>
+            </div>
+            <span class="badge">PDF / DOCX / XLSX</span>
+          </div>
+          <div class="upload-form-grid">
+            <label>No. Borang<input name="uploadId" placeholder="Contoh: ICU-UP-001" required></label>
+            <label>Kategori
+              <select name="uploadCategory" required>
+                <option>Projek Pembangunan</option>
+                <option>Kewangan</option>
+                <option>Audit & Kualiti</option>
+                <option>Kesejahteraan</option>
+                <option>HR & Pentadbiran</option>
+              </select>
+            </label>
+            <label>Fail Borang<input name="uploadFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required></label>
+            <button type="submit">Upload Borang</button>
+          </div>
+        </form>
+
+        <div class="toolbar">
+          <input id="searchInput" type="search" placeholder="Cari nombor borang, kategori, atau kata kunci">
+          <select id="categoryFilter">
+            <option value="Semua">Semua kategori</option>
+            <option>Projek Pembangunan</option>
+            <option>Kewangan</option>
+            <option>Audit & Kualiti</option>
+            <option>Kesejahteraan</option>
+            <option>HR & Pentadbiran</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>No. Borang</th>
+                <th>Nama Borang</th>
+                <th>Kategori</th>
+                <th>Versi</th>
+                <th>Status</th>
+                <th>Sumber</th>
+                <th>Tindakan</th>
+              </tr>
+            </thead>
+            <tbody id="formsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="fill" class="view">
+        <form class="form-panel" id="digitalForm">
+          <div class="panel-head">
+            <div>
+              <h2 id="onlineFormTitle">Laporan Kemajuan Projek</h2>
+              <p id="onlineFormSource">Borang digital sedia untuk diisi melalui portal.</p>
+            </div>
+            <span class="badge">Isi Online</span>
+          </div>
+          <div class="form-grid">
+            <label>No. Borang<input name="formCode" value="ICU-PROJ-014" readonly></label>
+            <label>Nama Borang<input name="formName" value="Laporan Kemajuan Projek" readonly></label>
+            <label>No. Projek<input name="projectNo" value="SBH-PPN-2026-041" required></label>
+            <label>Daerah<input name="district" value="Kota Kinabalu" required></label>
+            <label>Tarikh Lawatan<input name="visitDate" type="date" required></label>
+            <label>Pegawai Bertugas<input name="officer" value="Nur Aina Binti Salleh" required></label>
+            <label class="wide">Status Semasa
+              <select name="progress">
+                <option>Dalam jadual</option>
+                <option>Lewat kurang 30 hari</option>
+                <option>Lewat melebihi 30 hari</option>
+                <option>Perlu tindakan segera</option>
+              </select>
+            </label>
+            <label class="wide">Catatan Lawatan<textarea name="notes" rows="5" placeholder="Masukkan dapatan pemantauan tapak"></textarea></label>
+          </div>
+          <div class="actions">
+            <button type="button" class="secondary" id="saveDraft">Simpan Draf</button>
+            <button type="submit">Hantar Untuk Kelulusan</button>
+          </div>
+          <p id="formMessage" class="message" role="status"></p>
+        </form>
+      </section>
+
+      <section class="print-sheet" id="printSheet" aria-hidden="true">
+        <header>
+          <p>ICU JPM Sabah</p>
+          <h2 id="printTitle">Borang Manual</h2>
+          <span id="printCode">No. Borang</span>
+        </header>
+        <div class="print-field"><strong>Nama Pemohon / Pegawai:</strong><span></span></div>
+        <div class="print-field"><strong>Unit / Bahagian:</strong><span></span></div>
+        <div class="print-field"><strong>Tarikh:</strong><span></span></div>
+        <div class="print-field large"><strong>Butiran / Catatan:</strong><span></span></div>
+        <div class="print-field"><strong>Tandatangan:</strong><span></span></div>
+      </section>
+
+      <section id="workflow" class="view">
+        <div class="workflow">
+          <article class="step done"><span>1</span><strong>Pegawai</strong><small>Borang dihantar</small></article>
+          <article class="step active"><span>2</span><strong>Ketua Unit</strong><small>Semakan dan komen</small></article>
+          <article class="step"><span>3</span><strong>Pengarah</strong><small>Kelulusan akhir</small></article>
+          <article class="step"><span>4</span><strong>Arkib</strong><small>Rekod audit disimpan</small></article>
+        </div>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Senarai Kelulusan</h2>
+            <button class="icon-button" title="Eksport">⇩</button>
+          </div>
+          <div id="approvalList" class="approval-list"></div>
+        </section>
+      </section>
+
+      <section id="process" class="view">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Carta Alir Proses Kerja Smart Borang</h2>
+              <p class="panel-note">Aliran ini meliputi upload borang, pilihan isi online, cetakan manual, semakan, kelulusan dan rekod audit.</p>
+            </div>
+            <span class="badge">SOP Ringkas</span>
+          </div>
+
+          <div class="process-flow">
+            <article class="process-node start">
+              <span>1</span>
+              <strong>Log Masuk</strong>
+              <small>Pengguna masuk mengikut peranan: Pegawai, Ketua Unit atau Pengarah.</small>
+            </article>
+
+            <article class="process-node">
+              <span>2</span>
+              <strong>Pilih / Upload Borang</strong>
+              <small>Cari borang sedia ada atau upload borang baharu ke repositori.</small>
+            </article>
+
+            <article class="process-branch">
+              <article class="process-node">
+                <span>3A</span>
+                <strong>Isi Online</strong>
+                <small>Borang dibuka dalam portal, diisi, disimpan draf atau dihantar.</small>
+              </article>
+              <article class="process-node">
+                <span>3B</span>
+                <strong>Print Manual</strong>
+                <small>Sistem sediakan borang kosong untuk dicetak dan diisi secara manual.</small>
+              </article>
+            </article>
+
+            <article class="process-node">
+              <span>4</span>
+              <strong>Hantar Untuk Semakan</strong>
+              <small>Borang dihantar kepada Ketua Unit bersama catatan dan dokumen sokongan.</small>
+            </article>
+
+            <article class="process-node decision">
+              <span>5</span>
+              <strong>Semakan Ketua Unit</strong>
+              <small>Jika tidak lengkap, borang dipulangkan untuk pembetulan. Jika lengkap, terus ke kelulusan akhir.</small>
+            </article>
+
+            <article class="process-node">
+              <span>6</span>
+              <strong>Kelulusan Akhir</strong>
+              <small>Pengarah atau pegawai pelulus membuat keputusan dan memberi komen.</small>
+            </article>
+
+            <article class="process-node end">
+              <span>7</span>
+              <strong>Arkib & Laporan</strong>
+              <small>Rekod audit disimpan, dashboard dikemaskini dan laporan boleh dijana.</small>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section id="ai" class="view">
+        <div class="ai-grid">
+          <section class="panel ai-card">
+            <div class="panel-head">
+              <div>
+                <h2>AI Auto-Extract Borang</h2>
+                <p class="panel-note">Simulasi cadangan field selepas borang diupload.</p>
+              </div>
+              <span class="badge">Upload AI</span>
+            </div>
+            <label>Pilih jenis borang
+              <select id="aiExtractType">
+                <option>Laporan Kemajuan Projek</option>
+                <option>Permohonan Peruntukan</option>
+                <option>Audit Dalaman ISO 9001:2015</option>
+                <option>Tuntutan Elaun Perjalanan</option>
+              </select>
+            </label>
+            <button type="button" id="runExtract">Cadang Field</button>
+            <div class="ai-output" id="extractOutput"></div>
+          </section>
+
+          <section class="panel ai-card">
+            <div class="panel-head">
+              <div>
+                <h2>AI Semak Kelengkapan</h2>
+                <p class="panel-note">Semak borang sebelum dihantar untuk kelulusan.</p>
+              </div>
+              <span class="badge">Validasi</span>
+            </div>
+            <button type="button" id="runCheck">Semak Borang Online</button>
+            <div class="ai-output" id="checkOutput"></div>
+          </section>
+
+          <section class="panel ai-card">
+            <div class="panel-head">
+              <div>
+                <h2>AI Ringkasan Pelulus</h2>
+                <p class="panel-note">Hasilkan ringkasan pendek untuk Ketua Unit atau Pengarah.</p>
+              </div>
+              <span class="badge">Ringkasan</span>
+            </div>
+            <textarea id="summaryInput" rows="5" placeholder="Masukkan catatan borang atau isu projek untuk diringkaskan."></textarea>
+            <button type="button" id="runSummary">Jana Ringkasan</button>
+            <div class="ai-output" id="summaryOutput"></div>
+          </section>
+
+          <section class="panel ai-card">
+            <div class="panel-head">
+              <div>
+                <h2>AI Chat Pembantu Borang</h2>
+                <p class="panel-note">Tanya borang mana perlu digunakan atau proses seterusnya.</p>
+              </div>
+              <span class="badge">Chat</span>
+            </div>
+            <div class="chat-window" id="chatWindow">
+              <div class="chat-message ai-message">Hai, saya boleh bantu cadangkan borang dan langkah proses Smart Borang.</div>
+            </div>
+            <div class="chat-input-row">
+              <input id="chatInput" placeholder="Contoh: Saya mahu tuntut perjalanan rasmi">
+              <button type="button" id="sendChat">Hantar</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="reports" class="view">
+        <div class="report-layout">
+          <section class="panel">
+            <h2>Ringkasan Bulanan</h2>
+            <div class="donut" aria-label="Carta status borang"></div>
+            <div class="legend">
+              <span><i class="green"></i>Diluluskan</span>
+              <span><i class="amber"></i>Semakan</span>
+              <span><i class="red"></i>Tertunggak</span>
+            </div>
+          </section>
+          <section class="panel">
+            <h2>Jana Laporan</h2>
+            <div class="report-options">
+              <button>Laporan Bulanan</button>
+              <button>Laporan Tahunan</button>
+              <button>Audit ISO 9001:2015</button>
+              <button>Integrasi MyProjek</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="access" class="view">
+        <div class="access-grid">
+          <article class="panel">
+            <h2>Peranan & Kebenaran</h2>
+            <div class="permissions" id="permissions"></div>
+          </article>
+          <article class="panel">
+            <h2>Keselamatan</h2>
+            <ul class="security-list">
+              <li>Log masuk ID pekerja dan kata laluan</li>
+              <li>Integrasi MyGovID sebagai pilihan masa depan</li>
+              <li>Rekod audit penuh untuk setiap kelulusan</li>
+              <li>Sandaran data harian di GovCloud atau MyGovCloud</li>
+              <li>Pematuhan PDPA 2010 untuk data peribadi</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
