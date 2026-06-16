@@ -307,7 +307,9 @@ export default function SmartBorangApp() {
       return;
     }
 
-    setFormMessage(status === "Draf" ? "Draf berjaya disimpan dalam prototype." : "Borang dihantar kepada Ketua Unit untuk semakan.");
+    setFormMessage(
+      "Submission belum masuk Supabase. Sila pastikan borang dipilih dari Repositori yang menunjukkan status Data disambung ke Supabase dan environment variable Vercel sudah aktif."
+    );
   }
 
   function printManualForm(form) {
@@ -415,6 +417,7 @@ export default function SmartBorangApp() {
         {activeSection === "fill" && (
           <FillForm
             selectedForm={selectedForm}
+            isSupabaseReady={isSupabaseReady}
             formFields={formFields}
             updateFormField={updateFormField}
             notes={notes}
@@ -522,10 +525,14 @@ function SelectCategory({ name }) {
   return <select name={name} required>{categories.map((item) => <option key={item}>{item}</option>)}</select>;
 }
 
-function FillForm({ selectedForm, formFields, updateFormField, notes, setNotes, formMessage, saveSubmission }) {
+function FillForm({ selectedForm, isSupabaseReady, formFields, updateFormField, notes, setNotes, formMessage, saveSubmission }) {
   return (
     <section className="view active"><form className="form-panel" onSubmit={(event) => { event.preventDefault(); saveSubmission("Dihantar"); }}>
       <div className="panel-head"><div><h2>{selectedForm.name}</h2><p id="onlineFormSource">No. {selectedForm.id} | {selectedForm.category} | {selectedForm.source}</p></div><span className="badge">Isi Online</span></div>
+      <div className="data-status">
+        <span className={`status-dot ${isSupabaseReady && selectedForm.dbId ? "online" : "offline"}`} />
+        {isSupabaseReady && selectedForm.dbId ? "Borang ini disambung ke Supabase submissions" : "Borang ini belum dipadankan dengan rekod Supabase"}
+      </div>
       <div className="form-grid">
         <label>No. Borang<input value={selectedForm.id} readOnly /></label><label>Nama Borang<input value={selectedForm.name} readOnly /></label>
         <label>No. Projek<input value={formFields.projectNo} onChange={(event) => updateFormField("projectNo", event.target.value)} required /></label><label>Daerah<input value={formFields.district} onChange={(event) => updateFormField("district", event.target.value)} required /></label>
