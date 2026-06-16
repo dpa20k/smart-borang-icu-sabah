@@ -74,6 +74,13 @@ export default function SmartBorangApp() {
   const [repoMessage, setRepoMessage] = useState("");
   const [selectedForm, setSelectedForm] = useState(defaultForms[0]);
   const [formMessage, setFormMessage] = useState("");
+  const [formFields, setFormFields] = useState({
+    projectNo: "SBH-PPN-2026-041",
+    district: "Kota Kinabalu",
+    visitDate: new Date().toISOString().slice(0, 10),
+    officer: "Nur Aina Binti Salleh",
+    progress: "Dalam jadual"
+  });
   const [notes, setNotes] = useState("");
   const [extractType, setExtractType] = useState("Laporan Kemajuan Projek");
   const [extractOutput, setExtractOutput] = useState([]);
@@ -251,6 +258,41 @@ export default function SmartBorangApp() {
     setActiveSection("fill");
   }
 
+  function updateFormField(name, value) {
+    setFormFields((current) => ({ ...current, [name]: value }));
+  }
+
+  async function saveSubmission(status) {
+    const payload = {
+      form_code: selectedForm.id,
+      form_name: selectedForm.name,
+      category: selectedForm.category,
+      ...formFields,
+      notes
+    };
+
+    if (supabase && isSupabaseReady && selectedForm.dbId) {
+      const { error } = await supabase
+        .from("submissions")
+        .insert({
+          form_id: selectedForm.dbId,
+          status,
+          payload,
+          submitted_at: status === "Dihantar" ? new Date().toISOString() : null
+        });
+
+      if (error) {
+        setFormMessage(`Gagal simpan submission ke Supabase: ${error.message}`);
+        return;
+      }
+
+      setFormMessage(status === "Draf" ? "Draf berjaya disimpan ke Supabase." : "Borang dihantar ke Supabase untuk semakan Ketua Unit.");
+      return;
+    }
+
+    setFormMessage(status === "Draf" ? "Draf berjaya disimpan dalam prototype." : "Borang dihantar kepada Ketua Unit untuk semakan.");
+  }
+
   function printManualForm(form) {
     setSelectedForm(form);
     setRepoMessage(`${form.id} disediakan untuk cetakan manual.`);
@@ -353,7 +395,17 @@ export default function SmartBorangApp() {
             }}
           />
         )}
-        {activeSection === "fill" && <FillForm selectedForm={selectedForm} notes={notes} setNotes={setNotes} formMessage={formMessage} setFormMessage={setFormMessage} />}
+        {activeSection === "fill" && (
+          <FillForm
+            selectedForm={selectedForm}
+            formFields={formFields}
+            updateFormField={updateFormField}
+            notes={notes}
+            setNotes={setNotes}
+            formMessage={formMessage}
+            saveSubmission={saveSubmission}
+          />
+        )}
         {activeSection === "workflow" && <Workflow />}
         {activeSection === "process" && <ProcessFlow />}
         {activeSection === "ai" && (
@@ -453,18 +505,18 @@ function SelectCategory({ name }) {
   return <select name={name} required>{categories.map((item) => <option key={item}>{item}</option>)}</select>;
 }
 
-function FillForm({ selectedForm, notes, setNotes, formMessage, setFormMessage }) {
+function FillForm({ selectedForm, formFields, updateFormField, notes, setNotes, formMessage, saveSubmission }) {
   return (
-    <section className="view active"><form className="form-panel" onSubmit={(event) => { event.preventDefault(); setFormMessage("Borang dihantar kepada Ketua Unit untuk semakan."); }}>
+    <section className="view active"><form className="form-panel" onSubmit={(event) => { event.preventDefault(); saveSubmission("Dihantar"); }}>
       <div className="panel-head"><div><h2>{selectedForm.name}</h2><p id="onlineFormSource">No. {selectedForm.id} | {selectedForm.category} | {selectedForm.source}</p></div><span className="badge">Isi Online</span></div>
       <div className="form-grid">
         <label>No. Borang<input value={selectedForm.id} readOnly /></label><label>Nama Borang<input value={selectedForm.name} readOnly /></label>
-        <label>No. Projek<input defaultValue="SBH-PPN-2026-041" required /></label><label>Daerah<input defaultValue="Kota Kinabalu" required /></label>
-        <label>Tarikh Lawatan<input type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label><label>Pegawai Bertugas<input defaultValue="Nur Aina Binti Salleh" required /></label>
-        <label className="wide">Status Semasa<select><option>Dalam jadual</option><option>Lewat kurang 30 hari</option><option>Lewat melebihi 30 hari</option><option>Perlu tindakan segera</option></select></label>
+        <label>No. Projek<input value={formFields.projectNo} onChange={(event) => updateFormField("projectNo", event.target.value)} required /></label><label>Daerah<input value={formFields.district} onChange={(event) => updateFormField("district", event.target.value)} required /></label>
+        <label>Tarikh Lawatan<input type="date" value={formFields.visitDate} onChange={(event) => updateFormField("visitDate", event.target.value)} required /></label><label>Pegawai Bertugas<input value={formFields.officer} onChange={(event) => updateFormField("officer", event.target.value)} required /></label>
+        <label className="wide">Status Semasa<select value={formFields.progress} onChange={(event) => updateFormField("progress", event.target.value)}><option>Dalam jadual</option><option>Lewat kurang 30 hari</option><option>Lewat melebihi 30 hari</option><option>Perlu tindakan segera</option></select></label>
         <label className="wide">Catatan Lawatan<textarea rows="5" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Masukkan dapatan pemantauan tapak" /></label>
       </div>
-      <div className="actions"><button type="button" className="secondary" onClick={() => setFormMessage("Draf berjaya disimpan dalam prototype.")}>Simpan Draf</button><button type="submit">Hantar Untuk Kelulusan</button></div>
+      <div className="actions"><button type="button" className="secondary" onClick={() => saveSubmission("Draf")}>Simpan Draf</button><button type="submit">Hantar Untuk Kelulusan</button></div>
       <p className="message">{formMessage}</p>
     </form></section>
   );
