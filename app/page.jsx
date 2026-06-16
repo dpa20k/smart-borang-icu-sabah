@@ -13,7 +13,7 @@ const defaultForms = [
   { id: "ICU-HR-004", name: "Tuntutan Elaun Perjalanan", category: "HR & Pentadbiran", version: "v3.0", status: "Aktif", source: "Template sistem" }
 ];
 
-const categories = ["Projek Pembangunan", "Kewangan", "Audit & Kualiti", "Kesejahteraan", "HR & Pentadbiran"];
+const defaultCategories = ["Projek Pembangunan", "Kewangan", "Audit & Kualiti", "Kesejahteraan", "HR & Pentadbiran"];
 
 const approvals = [
   { id: "ICU-PROJ-014", title: "Laporan Kemajuan Projek", owner: "Pegawai Pembangunan S32", age: "9 hari" },
@@ -24,7 +24,9 @@ const approvals = [
 const permissionMatrix = {
   Pegawai: [["Isi borang", "Ya"], ["Simpan draf", "Ya"], ["Lulus borang", "Tidak"], ["Lihat laporan semua unit", "Tidak"]],
   "Ketua Unit": [["Isi borang", "Ya"], ["Semak borang unit", "Ya"], ["Lulus peringkat unit", "Ya"], ["Lihat laporan unit", "Ya"]],
-  Pengarah: [["Kelulusan akhir", "Ya"], ["Lihat semua dashboard", "Ya"], ["Eksport laporan tahunan", "Ya"], ["Urus akses sistem", "Ya"]]
+  Pengarah: [["Kelulusan akhir", "Ya"], ["Lihat semua dashboard", "Ya"], ["Eksport laporan tahunan", "Ya"], ["Urus akses sistem", "Ya"]],
+  Admin: [["Urus kategori", "Ya"], ["Tambah / buang borang", "Ya"], ["Urus peranan", "Ya"], ["Lihat laporan semua unit", "Ya"]],
+  "Pentadbir ICT": [["Lihat log audit", "Ya"], ["Pantau integrasi Supabase", "Ya"], ["Semak storage dan deploy", "Ya"], ["Urus konfigurasi teknikal", "Ya"]]
 };
 
 const aiFieldSuggestions = {
@@ -86,6 +88,11 @@ export default function SmartBorangApp() {
   const [submissions, setSubmissions] = useState([]);
   const [workflowMessage, setWorkflowMessage] = useState("");
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(Boolean(supabase));
+  const [managedCategories, setManagedCategories] = useState(defaultCategories);
+  const [categoryMessage, setCategoryMessage] = useState("");
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditMessage, setAuditMessage] = useState("");
+  const [isLoadingAuditLogs, setIsLoadingAuditLogs] = useState(Boolean(supabase));
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Semua");
   const [repoMessage, setRepoMessage] = useState("");
@@ -110,11 +117,17 @@ export default function SmartBorangApp() {
   ]);
 
   useEffect(() => {
+    const savedCategories = window.localStorage.getItem("smartBorangCategories");
+    if (savedCategories) {
+      setManagedCategories(JSON.parse(savedCategories));
+    }
+
     async function loadForms() {
       if (!supabase) {
         setIsSupabaseReady(false);
         setIsLoadingForms(false);
         setIsLoadingSubmissions(false);
+        setIsLoadingAuditLogs(false);
         return;
       }
 
@@ -137,7 +150,23 @@ export default function SmartBorangApp() {
 
     loadForms();
     loadSubmissions();
+    loadAuditLogs();
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("smartBorangCategories", JSON.stringify(managedCategories));
+  }, [managedCategories]);
+
+  async function writeAuditLog(action, entityType, entityId = null, metadata = {}) {
+    if (!supabase) return;
+
+    await supabase.from("audit_logs").insert({
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      metadata: { role, ...metadata }
+    });
+  }
 
   async function loadSubmissions() {
     if (!supabase) {
@@ -158,6 +187,28 @@ export default function SmartBorangApp() {
 
     setSubmissions(data.map(mapDbSubmission));
     setIsLoadingSubmissions(false);
+  }
+
+  async function loadAuditLogs() {
+    if (!supabase) {
+      setIsLoadingAuditLogs(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("audit_logs")
+      .select("id, action, entity_type, entity_id, metadata, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      setAuditMessage(`Gagal memuatkan log audit: ${error.message}`);
+      setIsLoadingAuditLogs(false);
+      return;
+    }
+
+    setAuditLogs(data || []);
+    setIsLoadingAuditLogs(false);
   }
 
   const filteredForms = useMemo(() => {
@@ -206,13 +257,15 @@ export default function SmartBorangApp() {
 
       setForms([mapDbForm(inserted), ...forms]);
       setRepoMessage(`${newForm.id} berjaya ditambah ke Supabase.`);
+      writeAuditLog("Tambah borang", "forms", inserted.id, { form_code: newForm.id, name: newForm.name });
       event.currentTarget.reset();
       return;
     }
 
-    setForms([newForm, ...forms]);
-    setRepoMessage(`${newForm.id} berjaya ditambah.`);
-    event.currentTarget.reset();
+      setForms([newForm, ...forms]);
+      setRepoMessage(`${newForm.id} berjaya ditambah.`);
+      writeAuditLog("Tambah borang demo", "forms", null, { form_code: newForm.id, name: newForm.name });
+      event.currentTarget.reset();
   }
 
   async function uploadForm(event) {
@@ -283,12 +336,14 @@ export default function SmartBorangApp() {
       }
 
       setForms([mapDbForm(inserted), ...forms]);
+      writeAuditLog("Upload borang", "forms", inserted.id, { form_code: uploadId, file_name: file.name, storage_path: storagePath });
       event.currentTarget.reset();
       return;
     }
 
     setForms([uploadedForm, ...forms]);
     setRepoMessage(`${uploadId} berjaya diupload. Borang boleh diisi online atau dicetak manual.`);
+    writeAuditLog("Upload borang demo", "forms", null, { form_code: uploadId, file_name: file.name });
     event.currentTarget.reset();
   }
 
@@ -329,20 +384,23 @@ export default function SmartBorangApp() {
     }
 
     if (supabase && formDbId) {
-      const { error } = await supabase
+      const { data: insertedSubmission, error } = await supabase
         .from("submissions")
         .insert({
           form_id: formDbId,
           status,
           payload,
           submitted_at: status === "Dihantar" ? new Date().toISOString() : null
-        });
+        })
+        .select("id")
+        .single();
 
       if (error) {
         setFormMessage(`Gagal simpan submission ke Supabase: ${error.message}`);
         return;
       }
 
+      writeAuditLog(status === "Draf" ? "Simpan draf" : "Hantar borang", "submissions", insertedSubmission.id, { form_code: selectedForm.id, status });
       setFormMessage(status === "Draf" ? "Draf berjaya disimpan ke Supabase." : "Borang berjaya dihantar dan direkodkan dalam Supabase untuk semakan Ketua Unit.");
       loadSubmissions();
       return;
@@ -386,6 +444,7 @@ export default function SmartBorangApp() {
     }
 
     setWorkflowMessage(`${submission.formCode} telah ${nextStatus.toLowerCase()} dan direkodkan dalam approval_steps.`);
+    writeAuditLog(nextStatus, "submissions", submission.id, { form_code: submission.formCode, step: role === "Pengarah" ? "Kelulusan Akhir" : "Semakan Ketua Unit" });
     setSubmissions((current) => current.map((item) => item.id === submission.id ? { ...item, status: nextStatus } : item));
   }
 
@@ -417,6 +476,35 @@ export default function SmartBorangApp() {
     if (!message) return;
     setChatMessages([...chatMessages, { type: "user", text: message }, { type: "ai", text: getChatReply(message) }]);
     setChatInput("");
+  }
+
+  function addCategory(event) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const newCategory = data.get("categoryName").trim();
+
+    if (!newCategory) return;
+    if (managedCategories.some((item) => item.toLowerCase() === newCategory.toLowerCase())) {
+      setCategoryMessage("Kategori sudah wujud.");
+      return;
+    }
+
+    setManagedCategories([...managedCategories, newCategory]);
+    setCategoryMessage(`${newCategory} berjaya ditambah.`);
+    writeAuditLog("Tambah kategori", "categories", null, { category: newCategory });
+    event.currentTarget.reset();
+  }
+
+  function removeCategory(categoryName) {
+    const isUsed = forms.some((form) => form.category === categoryName);
+    if (isUsed) {
+      setCategoryMessage("Kategori sedang digunakan oleh borang dan tidak boleh dipadam.");
+      return;
+    }
+
+    setManagedCategories(managedCategories.filter((item) => item !== categoryName));
+    setCategoryMessage(`${categoryName} telah dipadam daripada senarai kategori.`);
+    writeAuditLog("Buang kategori", "categories", null, { category: categoryName });
   }
 
   return (
@@ -463,6 +551,7 @@ export default function SmartBorangApp() {
         {activeSection === "repository" && (
           <Repository
             forms={filteredForms}
+            categories={managedCategories}
             search={search}
             category={category}
             repoMessage={repoMessage}
@@ -483,11 +572,13 @@ export default function SmartBorangApp() {
                 }
                 setForms(forms.filter((item) => item.dbId !== form.dbId));
                 setRepoMessage(`${form.id} telah dibuang daripada Supabase.`);
+                writeAuditLog("Buang borang", "forms", form.dbId, { form_code: form.id, name: form.name });
                 return;
               }
 
               setForms(forms.filter((item) => item.id !== form.id));
               setRepoMessage(`${form.id} telah dibuang daripada repositori prototype.`);
+              writeAuditLog("Buang borang demo", "forms", null, { form_code: form.id, name: form.name });
             }}
           />
         )}
@@ -532,7 +623,19 @@ export default function SmartBorangApp() {
           />
         )}
         {activeSection === "reports" && <Reports />}
-        {activeSection === "access" && <Access role={role} />}
+        {activeSection === "access" && (
+          <Access
+            role={role}
+            categories={managedCategories}
+            categoryMessage={categoryMessage}
+            onAddCategory={addCategory}
+            onRemoveCategory={removeCategory}
+            auditLogs={auditLogs}
+            auditMessage={auditMessage}
+            isLoadingAuditLogs={isLoadingAuditLogs}
+            onRefreshAudit={loadAuditLogs}
+          />
+        )}
 
         <section className="print-sheet" aria-hidden="true">
           <header><p>ICU JPM Sabah</p><h2>{selectedForm.name}</h2><span>{selectedForm.id} | {selectedForm.category} | {selectedForm.version}</span></header>
@@ -570,7 +673,7 @@ function Dashboard() {
   );
 }
 
-function Repository({ forms, search, category, repoMessage, isSupabaseReady, isLoadingForms, onSearch, onCategory, onAdd, onUpload, onFill, onPrint, onRemove }) {
+function Repository({ forms, categories, search, category, repoMessage, isSupabaseReady, isLoadingForms, onSearch, onCategory, onAdd, onUpload, onFill, onPrint, onRemove }) {
   return (
     <section className="view active">
       <form className="add-form-panel" onSubmit={onAdd}>
@@ -578,7 +681,7 @@ function Repository({ forms, search, category, repoMessage, isSupabaseReady, isL
         <div className="add-form-grid">
           <label>No. Borang<input name="id" placeholder="Contoh: ICU-PROJ-030" required /></label>
           <label>Nama Borang<input name="name" placeholder="Contoh: Laporan Isu Projek" required /></label>
-          <label>Kategori<SelectCategory name="category" /></label>
+          <label>Kategori<SelectCategory name="category" categories={categories} /></label>
           <label>Versi<input name="version" placeholder="v1.0" defaultValue="v1.0" required /></label>
           <label>Status<select name="status" required><option>Aktif</option><option>Draf</option></select></label>
           <button type="submit">Tambah Borang</button>
@@ -589,7 +692,7 @@ function Repository({ forms, search, category, repoMessage, isSupabaseReady, isL
         <div className="panel-head"><div><h2>Upload Borang</h2><p>Muat naik fail borang untuk diisi secara online atau dicetak bagi pengisian manual.</p></div><span className="badge">PDF / DOCX / XLSX</span></div>
         <div className="upload-form-grid">
           <label>No. Borang<input name="uploadId" placeholder="Contoh: ICU-UP-001" required /></label>
-          <label>Kategori<SelectCategory name="uploadCategory" /></label>
+          <label>Kategori<SelectCategory name="uploadCategory" categories={categories} /></label>
           <label>Fail Borang<input name="uploadFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required /></label>
           <button type="submit">Upload Borang</button>
         </div>
@@ -606,7 +709,7 @@ function Repository({ forms, search, category, repoMessage, isSupabaseReady, isL
   );
 }
 
-function SelectCategory({ name }) {
+function SelectCategory({ name, categories }) {
   return <select name={name} required>{categories.map((item) => <option key={item}>{item}</option>)}</select>;
 }
 
@@ -702,6 +805,73 @@ function Reports() {
   return <section className="view active"><div className="report-layout"><section className="panel"><h2>Ringkasan Bulanan</h2><div className="donut" /><div className="legend"><span><i className="green" />Diluluskan</span><span><i className="amber" />Semakan</span><span><i className="red" />Tertunggak</span></div></section><section className="panel"><h2>Jana Laporan</h2><div className="report-options"><button>Laporan Bulanan</button><button>Laporan Tahunan</button><button>Audit ISO 9001:2015</button><button>Integrasi MyProjek</button></div></section></div></section>;
 }
 
-function Access({ role }) {
-  return <section className="view active"><div className="access-grid"><article className="panel"><h2>Peranan & Kebenaran</h2><div className="permissions">{permissionMatrix[role].map(([label, value]) => <div className="permission-row" key={label}><span>{label}</span><span>{value}</span></div>)}</div></article><article className="panel"><h2>Keselamatan</h2><ul className="security-list"><li>Log masuk ID pekerja dan kata laluan</li><li>Integrasi MyGovID sebagai pilihan masa depan</li><li>Rekod audit penuh untuk setiap kelulusan</li><li>Sandaran data harian di GovCloud atau MyGovCloud</li><li>Pematuhan PDPA 2010 untuk data peribadi</li></ul></article></div></section>;
+function Access({ role, categories, categoryMessage, onAddCategory, onRemoveCategory, auditLogs, auditMessage, isLoadingAuditLogs, onRefreshAudit }) {
+  return (
+    <section className="view active">
+      <div className="access-grid">
+        <article className="panel">
+          <h2>Peranan & Kebenaran</h2>
+          <div className="permissions">
+            {permissionMatrix[role].map(([label, value]) => <div className="permission-row" key={label}><span>{label}</span><span>{value}</span></div>)}
+          </div>
+        </article>
+        <article className="panel">
+          <h2>Keselamatan</h2>
+          <ul className="security-list">
+            <li>Log masuk ID pekerja dan kata laluan</li>
+            <li>Integrasi MyGovID sebagai pilihan masa depan</li>
+            <li>Rekod audit penuh untuk setiap kelulusan</li>
+            <li>Sandaran data harian di GovCloud atau MyGovCloud</li>
+            <li>Pematuhan PDPA 2010 untuk data peribadi</li>
+          </ul>
+        </article>
+      </div>
+
+      <div className="admin-grid">
+        <article className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Admin: Urus Kategori</h2>
+              <p className="panel-note">Tambah atau padam kategori borang yang digunakan dalam Repositori.</p>
+            </div>
+            <span className="badge">Admin</span>
+          </div>
+          <form className="category-form" onSubmit={onAddCategory}>
+            <input name="categoryName" placeholder="Nama kategori baharu" />
+            <button type="submit">Tambah Kategori</button>
+          </form>
+          <p className="message">{categoryMessage}</p>
+          <div className="category-list">
+            {categories.map((item) => (
+              <div className="category-row" key={item}>
+                <span>{item}</span>
+                <button type="button" onClick={() => onRemoveCategory(item)}>Padam</button>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Pentadbir ICT: Log Audit</h2>
+              <p className="panel-note">Paparan tindakan sistem daripada table audit_logs.</p>
+            </div>
+            <button className="icon-button" type="button" onClick={onRefreshAudit}>↻</button>
+          </div>
+          <p className="message">{auditMessage}</p>
+          <div className="audit-list">
+            {isLoadingAuditLogs && <div className="audit-row"><strong>Memuatkan log...</strong><span>Sedang membaca Supabase.</span></div>}
+            {!isLoadingAuditLogs && auditLogs.length === 0 && <div className="audit-row"><strong>Tiada log audit</strong><span>Belum ada tindakan direkodkan.</span></div>}
+            {auditLogs.map((log) => (
+              <div className="audit-row" key={log.id}>
+                <strong>{log.action}</strong>
+                <span>{log.entity_type} | {new Date(log.created_at).toLocaleString("ms-MY")}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
+    </section>
+  );
 }
