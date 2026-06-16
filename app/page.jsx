@@ -272,7 +272,7 @@ export default function SmartBorangApp() {
       notes
     };
 
-    if (supabase && isSupabaseReady && !formDbId) {
+    if (supabase && !formDbId) {
       const { data: dbForm, error: lookupError } = await supabase
         .from("forms")
         .select("id")
@@ -288,7 +288,7 @@ export default function SmartBorangApp() {
       setSelectedForm((current) => ({ ...current, dbId: formDbId }));
     }
 
-    if (supabase && isSupabaseReady && formDbId) {
+    if (supabase && formDbId) {
       const { error } = await supabase
         .from("submissions")
         .insert({
@@ -308,7 +308,7 @@ export default function SmartBorangApp() {
     }
 
     setFormMessage(
-      "Submission belum masuk Supabase. Sila pastikan borang dipilih dari Repositori yang menunjukkan status Data disambung ke Supabase dan environment variable Vercel sudah aktif."
+      "Submission belum masuk Supabase. Environment variable Supabase belum aktif di deployment ini atau borang belum wujud dalam table forms."
     );
   }
 
@@ -530,8 +530,8 @@ function FillForm({ selectedForm, isSupabaseReady, formFields, updateFormField, 
     <section className="view active"><form className="form-panel" onSubmit={(event) => { event.preventDefault(); saveSubmission("Dihantar"); }}>
       <div className="panel-head"><div><h2>{selectedForm.name}</h2><p id="onlineFormSource">No. {selectedForm.id} | {selectedForm.category} | {selectedForm.source}</p></div><span className="badge">Isi Online</span></div>
       <div className="data-status">
-        <span className={`status-dot ${isSupabaseReady && selectedForm.dbId ? "online" : "offline"}`} />
-        {isSupabaseReady && selectedForm.dbId ? "Borang ini disambung ke Supabase submissions" : "Borang ini belum dipadankan dengan rekod Supabase"}
+        <span className={`status-dot ${supabase ? "online" : "offline"}`} />
+        {supabase ? "Supabase aktif. Sistem akan padankan borang ini sebelum simpan submission." : "Supabase env belum aktif pada deployment ini"}
       </div>
       <div className="form-grid">
         <label>No. Borang<input value={selectedForm.id} readOnly /></label><label>Nama Borang<input value={selectedForm.name} readOnly /></label>
