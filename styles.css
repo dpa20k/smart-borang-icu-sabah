@@ -690,6 +690,24 @@ td .fill-button {
   padding: 10px 12px;
 }
 
+.approval-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.approval-actions button {
+  background: #e6f4f1;
+  color: #096c63;
+  border: 1px solid #b9dfd7;
+  font-weight: 700;
+}
+
+.approval-actions .reject-button {
+  background: #fff1ef;
+  color: var(--red);
+  border-color: #f3c9c3;
+}
+
 .donut {
   width: min(260px, 100%);
   aspect-ratio: 1;

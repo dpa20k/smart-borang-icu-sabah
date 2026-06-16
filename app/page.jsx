@@ -46,6 +46,20 @@ function mapDbForm(row) {
   };
 }
 
+function mapDbSubmission(row) {
+  const payload = row.payload || {};
+  return {
+    id: row.id,
+    formId: row.form_id,
+    formCode: payload.form_code || row.forms?.form_code || "-",
+    formName: payload.form_name || row.forms?.name || "Borang",
+    category: payload.category || row.forms?.category || "-",
+    status: row.status,
+    notes: payload.notes || "-",
+    submittedAt: row.submitted_at || row.created_at
+  };
+}
+
 function getChatReply(text) {
   const query = text.toLowerCase();
   if (query.includes("tuntut") || query.includes("elaun") || query.includes("perjalanan")) {
@@ -69,6 +83,9 @@ export default function SmartBorangApp() {
   const [forms, setForms] = useState(defaultForms);
   const [isSupabaseReady, setIsSupabaseReady] = useState(Boolean(supabase));
   const [isLoadingForms, setIsLoadingForms] = useState(Boolean(supabase));
+  const [submissions, setSubmissions] = useState([]);
+  const [workflowMessage, setWorkflowMessage] = useState("");
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(Boolean(supabase));
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Semua");
   const [repoMessage, setRepoMessage] = useState("");
@@ -97,6 +114,7 @@ export default function SmartBorangApp() {
       if (!supabase) {
         setIsSupabaseReady(false);
         setIsLoadingForms(false);
+        setIsLoadingSubmissions(false);
         return;
       }
 
@@ -118,7 +136,29 @@ export default function SmartBorangApp() {
     }
 
     loadForms();
+    loadSubmissions();
   }, []);
+
+  async function loadSubmissions() {
+    if (!supabase) {
+      setIsLoadingSubmissions(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("submissions")
+      .select("id, form_id, status, payload, submitted_at, created_at, forms(form_code, name, category)")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setWorkflowMessage(`Gagal memuatkan submissions: ${error.message}`);
+      setIsLoadingSubmissions(false);
+      return;
+    }
+
+    setSubmissions(data.map(mapDbSubmission));
+    setIsLoadingSubmissions(false);
+  }
 
   const filteredForms = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -304,12 +344,49 @@ export default function SmartBorangApp() {
       }
 
       setFormMessage(status === "Draf" ? "Draf berjaya disimpan ke Supabase." : "Borang berjaya dihantar dan direkodkan dalam Supabase untuk semakan Ketua Unit.");
+      loadSubmissions();
       return;
     }
 
     setFormMessage(
       "Submission belum masuk Supabase. Environment variable Supabase belum aktif di deployment ini atau borang belum wujud dalam table forms."
     );
+  }
+
+  async function decideSubmission(submission, decision) {
+    if (!supabase) {
+      setWorkflowMessage("Supabase env belum aktif pada deployment ini.");
+      return;
+    }
+
+    const nextStatus = decision === "Diluluskan" ? "Diluluskan" : "Ditolak";
+    const { error: stepError } = await supabase
+      .from("approval_steps")
+      .insert({
+        submission_id: submission.id,
+        step_name: role === "Pengarah" ? "Kelulusan Akhir" : "Semakan Ketua Unit",
+        status: nextStatus,
+        comments: decision === "Diluluskan" ? "Diluluskan melalui Smart Borang." : "Ditolak dan perlu semakan semula.",
+        decided_at: new Date().toISOString()
+      });
+
+    if (stepError) {
+      setWorkflowMessage(`Gagal simpan approval step: ${stepError.message}`);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("submissions")
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .eq("id", submission.id);
+
+    if (updateError) {
+      setWorkflowMessage(`Approval direkodkan, tetapi status submission gagal dikemaskini: ${updateError.message}`);
+      return;
+    }
+
+    setWorkflowMessage(`${submission.formCode} telah ${nextStatus.toLowerCase()} dan direkodkan dalam approval_steps.`);
+    setSubmissions((current) => current.map((item) => item.id === submission.id ? { ...item, status: nextStatus } : item));
   }
 
   function printManualForm(form) {
@@ -426,7 +503,15 @@ export default function SmartBorangApp() {
             saveSubmission={saveSubmission}
           />
         )}
-        {activeSection === "workflow" && <Workflow />}
+        {activeSection === "workflow" && (
+          <Workflow
+            submissions={submissions}
+            isLoadingSubmissions={isLoadingSubmissions}
+            workflowMessage={workflowMessage}
+            onRefresh={loadSubmissions}
+            onDecision={decideSubmission}
+          />
+        )}
         {activeSection === "process" && <ProcessFlow />}
         {activeSection === "ai" && (
           <AiAssistant
@@ -546,8 +631,48 @@ function FillForm({ selectedForm, isSupabaseReady, formFields, updateFormField, 
   );
 }
 
-function Workflow() {
-  return <section className="view active"><div className="workflow">{["Pegawai", "Ketua Unit", "Pengarah", "Arkib"].map((item, index) => <article key={item} className={`step ${index === 0 ? "done" : index === 1 ? "active" : ""}`}><span>{index + 1}</span><strong>{item}</strong><small>{["Borang dihantar", "Semakan dan komen", "Kelulusan akhir", "Rekod audit disimpan"][index]}</small></article>)}</div><section className="panel"><div className="panel-head"><h2>Senarai Kelulusan</h2><button className="icon-button">⇩</button></div><div className="approval-list">{approvals.map((item) => <article className="approval-card" key={item.id}><div><strong>{item.id}</strong><p>{item.title} oleh {item.owner}</p><span className="badge">Menunggu {item.age}</span></div><button>Semak</button></article>)}</div></section></section>;
+function Workflow({ submissions, isLoadingSubmissions, workflowMessage, onRefresh, onDecision }) {
+  return (
+    <section className="view active">
+      <div className="workflow">
+        {["Pegawai", "Ketua Unit", "Pengarah", "Arkib"].map((item, index) => (
+          <article key={item} className={`step ${index === 0 ? "done" : index === 1 ? "active" : ""}`}>
+            <span>{index + 1}</span>
+            <strong>{item}</strong>
+            <small>{["Borang dihantar", "Semakan dan komen", "Kelulusan akhir", "Rekod audit disimpan"][index]}</small>
+          </article>
+        ))}
+      </div>
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <h2>Senarai Kelulusan</h2>
+            <p className="panel-note">Data ini dibaca daripada table submissions dan keputusan disimpan ke approval_steps.</p>
+          </div>
+          <button className="icon-button" type="button" onClick={onRefresh}>↻</button>
+        </div>
+        <p className="message">{workflowMessage}</p>
+        <div className="approval-list">
+          {isLoadingSubmissions && <article className="approval-card"><div><strong>Memuatkan submissions...</strong><p>Sedang membaca data Supabase.</p></div></article>}
+          {!isLoadingSubmissions && submissions.length === 0 && <article className="approval-card"><div><strong>Tiada submission</strong><p>Belum ada borang dihantar untuk kelulusan.</p></div></article>}
+          {submissions.map((item) => (
+            <article className="approval-card" key={item.id}>
+              <div>
+                <strong>{item.formCode}</strong>
+                <p>{item.formName} | {item.category}</p>
+                <p>Catatan: {item.notes}</p>
+                <span className="badge">{item.status}</span>
+              </div>
+              <div className="approval-actions">
+                <button type="button" onClick={() => onDecision(item, "Diluluskan")}>Lulus</button>
+                <button className="reject-button" type="button" onClick={() => onDecision(item, "Ditolak")}>Tolak</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </section>
+  );
 }
 
 function ProcessFlow() {
