@@ -246,6 +246,52 @@ h2 {
   margin-top: 4px;
 }
 
+.demo-accounts {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.demo-account-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.demo-account {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.demo-account span,
+.demo-account code {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
+.demo-account code {
+  color: var(--ink);
+  background: #edf2f7;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.demo-account button {
+  border: 0;
+  border-radius: 8px;
+  background: #e6f4f1;
+  color: #096c63;
+  min-height: 36px;
+  padding: 8px 10px;
+  font-weight: 700;
+}
+
 select,
 input,
 textarea {
@@ -988,6 +1034,7 @@ td .fill-button {
   .report-layout,
   .access-grid,
   .admin-grid,
+  .demo-account-grid,
   .ai-grid,
   .workflow,
   .process-branch {

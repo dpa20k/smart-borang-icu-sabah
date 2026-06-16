@@ -29,6 +29,14 @@ const permissionMatrix = {
   "Pentadbir ICT": [["Lihat log audit", "Ya"], ["Pantau integrasi Supabase", "Ya"], ["Semak storage dan deploy", "Ya"], ["Urus konfigurasi teknikal", "Ya"]]
 };
 
+const demoAccounts = [
+  { role: "Pegawai", email: "pegawai.demo@smartborang.test", password: "Demo@12345" },
+  { role: "Ketua Unit", email: "ketuaunit.demo@smartborang.test", password: "Demo@12345" },
+  { role: "Pengarah", email: "pengarah.demo@smartborang.test", password: "Demo@12345" },
+  { role: "Admin", email: "admin.demo@smartborang.test", password: "Demo@12345" },
+  { role: "Pentadbir ICT", email: "ict.demo@smartborang.test", password: "Demo@12345" }
+];
+
 const aiFieldSuggestions = {
   "Laporan Kemajuan Projek": ["No. Projek", "Daerah", "Tarikh Lawatan", "Pegawai Bertugas", "Status Semasa", "Catatan Lawatan", "Isu Kritikal"],
   "Permohonan Peruntukan": ["Nama Pemohon", "Unit", "Jumlah Peruntukan", "Tujuan Permohonan", "Kod Projek", "Dokumen Sokongan"],
@@ -85,6 +93,11 @@ export default function SmartBorangApp() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authMessage, setAuthMessage] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupRole, setSignupRole] = useState("Pegawai");
   const [forms, setForms] = useState(defaultForms);
   const [isSupabaseReady, setIsSupabaseReady] = useState(Boolean(supabase));
   const [isLoadingForms, setIsLoadingForms] = useState(Boolean(supabase));
@@ -575,8 +588,8 @@ export default function SmartBorangApp() {
     }
 
     const data = new FormData(event.currentTarget);
-    const email = data.get("email").trim();
-    const password = data.get("password");
+    const email = loginEmail.trim();
+    const password = loginPassword;
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
@@ -585,7 +598,8 @@ export default function SmartBorangApp() {
     }
 
     setAuthMessage("Login berjaya.");
-    event.currentTarget.reset();
+    setLoginEmail("");
+    setLoginPassword("");
   }
 
   async function signUp(event) {
@@ -596,9 +610,9 @@ export default function SmartBorangApp() {
     }
 
     const data = new FormData(event.currentTarget);
-    const email = data.get("email").trim();
-    const password = data.get("password");
-    const roleChoice = data.get("role");
+    const email = signupEmail.trim();
+    const password = signupPassword;
+    const roleChoice = signupRole;
     const { data: authData, error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
@@ -617,7 +631,9 @@ export default function SmartBorangApp() {
     }
 
     setAuthMessage("Pendaftaran berjaya. Jika email confirmation aktif, sila sahkan email dahulu.");
-    event.currentTarget.reset();
+    setSignupEmail("");
+    setSignupPassword("");
+    setSignupRole("Pegawai");
   }
 
   async function signOut() {
@@ -689,6 +705,16 @@ export default function SmartBorangApp() {
           session={session}
           profile={profile}
           authMessage={authMessage}
+          loginEmail={loginEmail}
+          loginPassword={loginPassword}
+          signupEmail={signupEmail}
+          signupPassword={signupPassword}
+          signupRole={signupRole}
+          setLoginEmail={setLoginEmail}
+          setLoginPassword={setLoginPassword}
+          setSignupEmail={setSignupEmail}
+          setSignupPassword={setSignupPassword}
+          setSignupRole={setSignupRole}
           onSignIn={signIn}
           onSignUp={signUp}
           onSignOut={signOut}
@@ -820,7 +846,32 @@ function Dashboard() {
   );
 }
 
-function AuthPanel({ session, profile, authMessage, onSignIn, onSignUp, onSignOut }) {
+function AuthPanel({
+  session,
+  profile,
+  authMessage,
+  loginEmail,
+  loginPassword,
+  signupEmail,
+  signupPassword,
+  signupRole,
+  setLoginEmail,
+  setLoginPassword,
+  setSignupEmail,
+  setSignupPassword,
+  setSignupRole,
+  onSignIn,
+  onSignUp,
+  onSignOut
+}) {
+  function useDemoAccount(account) {
+    setLoginEmail(account.email);
+    setLoginPassword(account.password);
+    setSignupEmail(account.email);
+    setSignupPassword(account.password);
+    setSignupRole(account.role);
+  }
+
   return (
     <section className="auth-panel">
       {session ? (
@@ -835,19 +886,40 @@ function AuthPanel({ session, profile, authMessage, onSignIn, onSignUp, onSignOu
         <div className="auth-grid">
           <form onSubmit={onSignIn}>
             <strong>Login Pengguna</strong>
-            <input name="email" type="email" placeholder="Email" required />
-            <input name="password" type="password" placeholder="Kata laluan" required />
+            <input name="email" type="email" placeholder="Email" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} required />
+            <input name="password" type="password" placeholder="Kata laluan" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} required />
             <button type="submit">Login</button>
           </form>
           <form onSubmit={onSignUp}>
             <strong>Daftar Akaun Demo</strong>
-            <input name="email" type="email" placeholder="Email" required />
-            <input name="password" type="password" placeholder="Kata laluan" required />
-            <select name="role" defaultValue="Pegawai">
+            <input name="email" type="email" placeholder="Email" value={signupEmail} onChange={(event) => setSignupEmail(event.target.value)} required />
+            <input name="password" type="password" placeholder="Kata laluan" value={signupPassword} onChange={(event) => setSignupPassword(event.target.value)} required />
+            <select name="role" value={signupRole} onChange={(event) => setSignupRole(event.target.value)}>
               {Object.keys(permissionMatrix).map((item) => <option key={item}>{item}</option>)}
             </select>
             <button type="submit">Daftar</button>
           </form>
+        </div>
+      )}
+      {!session && (
+        <div className="demo-accounts">
+          <div className="panel-head">
+            <div>
+              <h2>Akaun Demo / UAT</h2>
+              <p className="panel-note">Gunakan senarai ini untuk test setiap peranan. Jika akaun belum wujud, klik akaun dan tekan Daftar dahulu.</p>
+            </div>
+            <span className="badge">Testing</span>
+          </div>
+          <div className="demo-account-grid">
+            {demoAccounts.map((account) => (
+              <article className="demo-account" key={account.role}>
+                <strong>{account.role}</strong>
+                <span>{account.email}</span>
+                <code>{account.password}</code>
+                <button type="button" onClick={() => useDemoAccount(account)}>Guna Akaun</button>
+              </article>
+            ))}
+          </div>
         </div>
       )}
       <p className="message">{authMessage}</p>
