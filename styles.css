@@ -692,6 +692,7 @@ td .fill-button {
 
 .approval-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
