@@ -708,6 +708,11 @@ td .fill-button {
   border-color: #f3c9c3;
 }
 
+.decision-complete {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .donut {
   width: min(260px, 100%);
   aspect-ratio: 1;

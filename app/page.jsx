@@ -663,10 +663,14 @@ function Workflow({ submissions, isLoadingSubmissions, workflowMessage, onRefres
                 <p>Catatan: {item.notes}</p>
                 <span className="badge">{item.status}</span>
               </div>
-              <div className="approval-actions">
-                <button type="button" onClick={() => onDecision(item, "Diluluskan")}>Lulus</button>
-                <button className="reject-button" type="button" onClick={() => onDecision(item, "Ditolak")}>Tolak</button>
-              </div>
+              {["Diluluskan", "Ditolak"].includes(item.status) ? (
+                <span className="decision-complete">Selesai</span>
+              ) : (
+                <div className="approval-actions">
+                  <button type="button" onClick={() => onDecision(item, "Diluluskan")}>Lulus</button>
+                  <button className="reject-button" type="button" onClick={() => onDecision(item, "Ditolak")}>Tolak</button>
+                </div>
+              )}
             </article>
           ))}
         </div>
