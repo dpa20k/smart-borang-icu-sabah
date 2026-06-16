@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 const defaultForms = [
   { id: "ICU-PROJ-014", name: "Laporan Kemajuan Projek", category: "Projek Pembangunan", version: "v3.2", status: "Aktif", source: "Template sistem" },
@@ -33,6 +34,18 @@ const aiFieldSuggestions = {
   "Tuntutan Elaun Perjalanan": ["Nama Pegawai", "No. Kakitangan", "Destinasi", "Tarikh Perjalanan", "Jumlah Tuntutan", "Resit Sokongan"]
 };
 
+function mapDbForm(row) {
+  return {
+    dbId: row.id,
+    id: row.form_code,
+    name: row.name,
+    category: row.category,
+    version: row.version,
+    status: row.status,
+    source: row.source || "Supabase"
+  };
+}
+
 function getChatReply(text) {
   const query = text.toLowerCase();
   if (query.includes("tuntut") || query.includes("elaun") || query.includes("perjalanan")) {
@@ -54,6 +67,8 @@ export default function SmartBorangApp() {
   const [activeSection, setActiveSection] = useState("dashboard");
   const [role, setRole] = useState("Pegawai");
   const [forms, setForms] = useState(defaultForms);
+  const [isSupabaseReady, setIsSupabaseReady] = useState(Boolean(supabase));
+  const [isLoadingForms, setIsLoadingForms] = useState(Boolean(supabase));
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Semua");
   const [repoMessage, setRepoMessage] = useState("");
@@ -70,6 +85,34 @@ export default function SmartBorangApp() {
     { type: "ai", text: "Hai, saya boleh bantu cadangkan borang dan langkah proses Smart Borang." }
   ]);
 
+  useEffect(() => {
+    async function loadForms() {
+      if (!supabase) {
+        setIsSupabaseReady(false);
+        setIsLoadingForms(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("forms")
+        .select("id, form_code, name, category, version, status, source")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setIsSupabaseReady(false);
+        setRepoMessage(`Supabase tidak dapat dibaca: ${error.message}. App guna data demo sementara.`);
+        setIsLoadingForms(false);
+        return;
+      }
+
+      setIsSupabaseReady(true);
+      setForms(data.length ? data.map(mapDbForm) : defaultForms);
+      setIsLoadingForms(false);
+    }
+
+    loadForms();
+  }, []);
+
   const filteredForms = useMemo(() => {
     const query = search.trim().toLowerCase();
     return forms.filter((form) => {
@@ -79,7 +122,7 @@ export default function SmartBorangApp() {
     });
   }, [forms, search, category]);
 
-  function addManualForm(event) {
+  async function addManualForm(event) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const newForm = {
@@ -94,12 +137,38 @@ export default function SmartBorangApp() {
       setRepoMessage("No. borang sudah wujud. Sila guna nombor lain.");
       return;
     }
+
+    if (supabase && isSupabaseReady) {
+      const { data: inserted, error } = await supabase
+        .from("forms")
+        .insert({
+          form_code: newForm.id,
+          name: newForm.name,
+          category: newForm.category,
+          version: newForm.version,
+          status: newForm.status,
+          source: newForm.source
+        })
+        .select("id, form_code, name, category, version, status, source")
+        .single();
+
+      if (error) {
+        setRepoMessage(`Gagal tambah ke Supabase: ${error.message}`);
+        return;
+      }
+
+      setForms([mapDbForm(inserted), ...forms]);
+      setRepoMessage(`${newForm.id} berjaya ditambah ke Supabase.`);
+      event.currentTarget.reset();
+      return;
+    }
+
     setForms([newForm, ...forms]);
     setRepoMessage(`${newForm.id} berjaya ditambah.`);
     event.currentTarget.reset();
   }
 
-  function uploadForm(event) {
+  async function uploadForm(event) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const file = data.get("uploadFile");
@@ -120,6 +189,57 @@ export default function SmartBorangApp() {
       status: "Aktif",
       source: `Upload: ${file.name}`
     };
+
+    if (supabase && isSupabaseReady) {
+      const storagePath = `${uploadId}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("form-templates")
+        .upload(storagePath, file, { upsert: false });
+
+      if (uploadError) {
+        setRepoMessage(`Gagal upload fail ke Supabase Storage: ${uploadError.message}`);
+        return;
+      }
+
+      const { data: inserted, error: formError } = await supabase
+        .from("forms")
+        .insert({
+          form_code: uploadedForm.id,
+          name: uploadedForm.name,
+          category: uploadedForm.category,
+          version: uploadedForm.version,
+          status: uploadedForm.status,
+          source: uploadedForm.source
+        })
+        .select("id, form_code, name, category, version, status, source")
+        .single();
+
+      if (formError) {
+        setRepoMessage(`Fail sudah upload, tetapi rekod borang gagal disimpan: ${formError.message}`);
+        return;
+      }
+
+      const { error: fileError } = await supabase
+        .from("form_files")
+        .insert({
+          form_id: inserted.id,
+          file_name: file.name,
+          storage_path: storagePath,
+          mime_type: file.type || null,
+          file_size: file.size
+        });
+
+      if (fileError) {
+        setRepoMessage(`Borang disimpan, tetapi metadata fail gagal: ${fileError.message}`);
+      } else {
+        setRepoMessage(`${uploadId} berjaya diupload ke Supabase Storage dan direkodkan.`);
+      }
+
+      setForms([mapDbForm(inserted), ...forms]);
+      event.currentTarget.reset();
+      return;
+    }
+
     setForms([uploadedForm, ...forms]);
     setRepoMessage(`${uploadId} berjaya diupload. Borang boleh diisi online atau dicetak manual.`);
     event.currentTarget.reset();
@@ -208,15 +328,28 @@ export default function SmartBorangApp() {
             search={search}
             category={category}
             repoMessage={repoMessage}
+            isSupabaseReady={isSupabaseReady}
+            isLoadingForms={isLoadingForms}
             onSearch={setSearch}
             onCategory={setCategory}
             onAdd={addManualForm}
             onUpload={uploadForm}
             onFill={openOnlineForm}
             onPrint={printManualForm}
-            onRemove={(id) => {
-              setForms(forms.filter((form) => form.id !== id));
-              setRepoMessage(`${id} telah dibuang daripada repositori prototype.`);
+            onRemove={async (form) => {
+              if (supabase && isSupabaseReady && form.dbId) {
+                const { error } = await supabase.from("forms").delete().eq("id", form.dbId);
+                if (error) {
+                  setRepoMessage(`Gagal buang dari Supabase: ${error.message}`);
+                  return;
+                }
+                setForms(forms.filter((item) => item.dbId !== form.dbId));
+                setRepoMessage(`${form.id} telah dibuang daripada Supabase.`);
+                return;
+              }
+
+              setForms(forms.filter((item) => item.id !== form.id));
+              setRepoMessage(`${form.id} telah dibuang daripada repositori prototype.`);
             }}
           />
         )}
@@ -280,7 +413,7 @@ function Dashboard() {
   );
 }
 
-function Repository({ forms, search, category, repoMessage, onSearch, onCategory, onAdd, onUpload, onFill, onPrint, onRemove }) {
+function Repository({ forms, search, category, repoMessage, isSupabaseReady, isLoadingForms, onSearch, onCategory, onAdd, onUpload, onFill, onPrint, onRemove }) {
   return (
     <section className="view active">
       <form className="add-form-panel" onSubmit={onAdd}>
@@ -305,8 +438,12 @@ function Repository({ forms, search, category, repoMessage, onSearch, onCategory
         </div>
       </form>
       <div className="toolbar"><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Cari nombor borang, kategori, atau kata kunci" /><select value={category} onChange={(event) => onCategory(event.target.value)}><option>Semua</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></div>
+      <div className="data-status">
+        <span className={`status-dot ${isSupabaseReady ? "online" : "offline"}`} />
+        {isLoadingForms ? "Memuatkan data Supabase..." : isSupabaseReady ? "Data disambung ke Supabase" : "Mode demo: Supabase env belum aktif atau belum boleh dibaca"}
+      </div>
       <div className="table-wrap"><table><thead><tr><th>No. Borang</th><th>Nama Borang</th><th>Kategori</th><th>Versi</th><th>Status</th><th>Sumber</th><th>Tindakan</th></tr></thead><tbody>
-        {forms.map((form) => <tr key={form.id}><td><strong>{form.id}</strong></td><td>{form.name}</td><td>{form.category}</td><td>{form.version}</td><td><span className={`status-pill ${form.status === "Draf" ? "draft" : "active"}`}>{form.status}</span></td><td>{form.source}</td><td><button className="fill-button" onClick={() => onFill(form)} type="button">Isi Online</button> <button className="print-button" onClick={() => onPrint(form)} type="button">Print Manual</button> <button className="remove-button" onClick={() => onRemove(form.id)} type="button">Buang</button></td></tr>)}
+        {forms.map((form) => <tr key={form.dbId || form.id}><td><strong>{form.id}</strong></td><td>{form.name}</td><td>{form.category}</td><td>{form.version}</td><td><span className={`status-pill ${form.status === "Draf" ? "draft" : "active"}`}>{form.status}</span></td><td>{form.source}</td><td><button className="fill-button" onClick={() => onFill(form)} type="button">Isi Online</button> <button className="print-button" onClick={() => onPrint(form)} type="button">Print Manual</button> <button className="remove-button" onClick={() => onRemove(form)} type="button">Buang</button></td></tr>)}
       </tbody></table></div>
     </section>
   );

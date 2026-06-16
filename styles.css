@@ -334,6 +334,30 @@ meter {
   margin-bottom: 16px;
 }
 
+.data-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--amber);
+}
+
+.status-dot.online {
+  background: var(--green);
+}
+
+.status-dot.offline {
+  background: var(--amber);
+}
+
 .add-form-panel,
 .upload-form-panel {
   margin-bottom: 16px;
