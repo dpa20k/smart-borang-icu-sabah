@@ -82,6 +82,9 @@ function getChatReply(text) {
 export default function SmartBorangApp() {
   const [activeSection, setActiveSection] = useState("dashboard");
   const [role, setRole] = useState("Pegawai");
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authMessage, setAuthMessage] = useState("");
   const [forms, setForms] = useState(defaultForms);
   const [isSupabaseReady, setIsSupabaseReady] = useState(Boolean(supabase));
   const [isLoadingForms, setIsLoadingForms] = useState(Boolean(supabase));
@@ -151,6 +154,25 @@ export default function SmartBorangApp() {
     loadForms();
     loadSubmissions();
     loadAuditLogs();
+
+    if (supabase) {
+      supabase.auth.getSession().then(({ data }) => {
+        setSession(data.session);
+        if (data.session?.user) loadProfile(data.session.user);
+      });
+
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        setSession(nextSession);
+        if (nextSession?.user) {
+          loadProfile(nextSession.user);
+        } else {
+          setProfile(null);
+          setRole("Pegawai");
+        }
+      });
+
+      return () => listener.subscription.unsubscribe();
+    }
   }, []);
 
   useEffect(() => {
@@ -161,11 +183,49 @@ export default function SmartBorangApp() {
     if (!supabase) return;
 
     await supabase.from("audit_logs").insert({
+      actor_id: session?.user?.id || null,
       action,
       entity_type: entityType,
       entity_id: entityId,
       metadata: { role, ...metadata }
     });
+  }
+
+  async function loadProfile(user) {
+    if (!supabase || !user) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, staff_id, role, unit")
+      .eq("id", user.id)
+      .single();
+
+    if (!error && data) {
+      setProfile(data);
+      setRole(data.role);
+      return;
+    }
+
+    const fallbackName = user.email?.split("@")[0] || "Pengguna";
+    const { data: created, error: createError } = await supabase
+      .from("profiles")
+      .insert({
+        id: user.id,
+        full_name: fallbackName,
+        staff_id: null,
+        role: "Pegawai",
+        unit: null
+      })
+      .select("id, full_name, staff_id, role, unit")
+      .single();
+
+    if (createError) {
+      setAuthMessage(`Login berjaya, tetapi profile gagal dibuat: ${createError.message}`);
+      return;
+    }
+
+    setProfile(created);
+    setRole(created.role);
   }
 
   async function loadSubmissions() {
@@ -507,6 +567,84 @@ export default function SmartBorangApp() {
     writeAuditLog("Buang kategori", "categories", null, { category: categoryName });
   }
 
+  async function signIn(event) {
+    event.preventDefault();
+    if (!supabase) {
+      setAuthMessage("Supabase env belum aktif.");
+      return;
+    }
+
+    const data = new FormData(event.currentTarget);
+    const email = data.get("email").trim();
+    const password = data.get("password");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setAuthMessage(`Login gagal: ${error.message}`);
+      return;
+    }
+
+    setAuthMessage("Login berjaya.");
+    event.currentTarget.reset();
+  }
+
+  async function signUp(event) {
+    event.preventDefault();
+    if (!supabase) {
+      setAuthMessage("Supabase env belum aktif.");
+      return;
+    }
+
+    const data = new FormData(event.currentTarget);
+    const email = data.get("email").trim();
+    const password = data.get("password");
+    const roleChoice = data.get("role");
+    const { data: authData, error } = await supabase.auth.signUp({ email, password });
+
+    if (error) {
+      setAuthMessage(`Daftar gagal: ${error.message}`);
+      return;
+    }
+
+    if (authData.user) {
+      await supabase.from("profiles").upsert({
+        id: authData.user.id,
+        full_name: email.split("@")[0],
+        role: roleChoice,
+        staff_id: null,
+        unit: null
+      });
+    }
+
+    setAuthMessage("Pendaftaran berjaya. Jika email confirmation aktif, sila sahkan email dahulu.");
+    event.currentTarget.reset();
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setAuthMessage("Logout berjaya.");
+  }
+
+  async function updateProfileRole(nextRole) {
+    setRole(nextRole);
+
+    if (!supabase || !session?.user) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role: nextRole })
+      .eq("id", session.user.id);
+
+    if (error) {
+      setAuthMessage(`Gagal kemaskini role profile: ${error.message}`);
+      return;
+    }
+
+    setProfile((current) => current ? { ...current, role: nextRole } : current);
+    writeAuditLog("Kemaskini peranan", "profiles", session.user.id, { role: nextRole });
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -541,11 +679,20 @@ export default function SmartBorangApp() {
           </div>
           <div className="user-panel">
             <label htmlFor="roleSelect">Peranan</label>
-            <select id="roleSelect" value={role} onChange={(event) => setRole(event.target.value)}>
+            <select id="roleSelect" value={role} onChange={(event) => updateProfileRole(event.target.value)}>
               {Object.keys(permissionMatrix).map((item) => <option key={item}>{item}</option>)}
             </select>
           </div>
         </header>
+
+        <AuthPanel
+          session={session}
+          profile={profile}
+          authMessage={authMessage}
+          onSignIn={signIn}
+          onSignUp={signUp}
+          onSignOut={signOut}
+        />
 
         {activeSection === "dashboard" && <Dashboard />}
         {activeSection === "repository" && (
@@ -669,6 +816,41 @@ function Dashboard() {
           {approvals.map((item) => <li key={item.id}><strong>{item.id}</strong><span>{item.title} belum selesai {item.age}</span></li>)}
         </ul></section>
       </div>
+    </section>
+  );
+}
+
+function AuthPanel({ session, profile, authMessage, onSignIn, onSignUp, onSignOut }) {
+  return (
+    <section className="auth-panel">
+      {session ? (
+        <div className="auth-status">
+          <div>
+            <strong>{profile?.full_name || session.user.email}</strong>
+            <span>{session.user.email} | Role: {profile?.role || "Pegawai"}</span>
+          </div>
+          <button type="button" onClick={onSignOut}>Logout</button>
+        </div>
+      ) : (
+        <div className="auth-grid">
+          <form onSubmit={onSignIn}>
+            <strong>Login Pengguna</strong>
+            <input name="email" type="email" placeholder="Email" required />
+            <input name="password" type="password" placeholder="Kata laluan" required />
+            <button type="submit">Login</button>
+          </form>
+          <form onSubmit={onSignUp}>
+            <strong>Daftar Akaun Demo</strong>
+            <input name="email" type="email" placeholder="Email" required />
+            <input name="password" type="password" placeholder="Kata laluan" required />
+            <select name="role" defaultValue="Pegawai">
+              {Object.keys(permissionMatrix).map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <button type="submit">Daftar</button>
+          </form>
+        </div>
+      )}
+      <p className="message">{authMessage}</p>
     </section>
   );
 }
@@ -806,6 +988,9 @@ function Reports() {
 }
 
 function Access({ role, categories, categoryMessage, onAddCategory, onRemoveCategory, auditLogs, auditMessage, isLoadingAuditLogs, onRefreshAudit }) {
+  const canManageCategories = ["Admin", "Pengarah"].includes(role);
+  const canViewAudit = ["Pentadbir ICT", "Admin", "Pengarah"].includes(role);
+
   return (
     <section className="view active">
       <div className="access-grid">
@@ -828,7 +1013,7 @@ function Access({ role, categories, categoryMessage, onAddCategory, onRemoveCate
       </div>
 
       <div className="admin-grid">
-        <article className="panel">
+        {canManageCategories ? <article className="panel">
           <div className="panel-head">
             <div>
               <h2>Admin: Urus Kategori</h2>
@@ -849,9 +1034,9 @@ function Access({ role, categories, categoryMessage, onAddCategory, onRemoveCate
               </div>
             ))}
           </div>
-        </article>
+        </article> : <article className="panel"><h2>Admin: Urus Kategori</h2><p className="panel-note">Hanya peranan Admin atau Pengarah boleh mengurus kategori.</p></article>}
 
-        <article className="panel">
+        {canViewAudit ? <article className="panel">
           <div className="panel-head">
             <div>
               <h2>Pentadbir ICT: Log Audit</h2>
@@ -870,7 +1055,7 @@ function Access({ role, categories, categoryMessage, onAddCategory, onRemoveCate
               </div>
             ))}
           </div>
-        </article>
+        </article> : <article className="panel"><h2>Pentadbir ICT: Log Audit</h2><p className="panel-note">Hanya Pentadbir ICT, Admin atau Pengarah boleh melihat log audit.</p></article>}
       </div>
     </section>
   );
