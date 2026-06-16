@@ -263,6 +263,7 @@ export default function SmartBorangApp() {
   }
 
   async function saveSubmission(status) {
+    let formDbId = selectedForm.dbId;
     const payload = {
       form_code: selectedForm.id,
       form_name: selectedForm.name,
@@ -271,11 +272,27 @@ export default function SmartBorangApp() {
       notes
     };
 
-    if (supabase && isSupabaseReady && selectedForm.dbId) {
+    if (supabase && isSupabaseReady && !formDbId) {
+      const { data: dbForm, error: lookupError } = await supabase
+        .from("forms")
+        .select("id")
+        .eq("form_code", selectedForm.id)
+        .single();
+
+      if (lookupError) {
+        setFormMessage(`Borang belum dipadankan dengan Supabase: ${lookupError.message}`);
+        return;
+      }
+
+      formDbId = dbForm.id;
+      setSelectedForm((current) => ({ ...current, dbId: formDbId }));
+    }
+
+    if (supabase && isSupabaseReady && formDbId) {
       const { error } = await supabase
         .from("submissions")
         .insert({
-          form_id: selectedForm.dbId,
+          form_id: formDbId,
           status,
           payload,
           submitted_at: status === "Dihantar" ? new Date().toISOString() : null
@@ -286,7 +303,7 @@ export default function SmartBorangApp() {
         return;
       }
 
-      setFormMessage(status === "Draf" ? "Draf berjaya disimpan ke Supabase." : "Borang dihantar ke Supabase untuk semakan Ketua Unit.");
+      setFormMessage(status === "Draf" ? "Draf berjaya disimpan ke Supabase." : "Borang berjaya dihantar dan direkodkan dalam Supabase untuk semakan Ketua Unit.");
       return;
     }
 
